@@ -26,6 +26,8 @@ if [ x$1 != xforce ] && [ x$1 != xsleep ] && [ `CheckPolicy` = 0 ]; then
     exit;
 fi
 
+logger "ACPI [sleep]"
+
 if [ x$LOCK_SCREEN = xtrue ]; then
     if pidof xscreensaver > /dev/null; then
 	for x in /tmp/.X11-unix/*; do

@@ -1,61 +1,46 @@
 #!/bin/bash
-# TODO:  Change the above to /bin/sh
+logger "ACPI [lid]: START"
 
 test -f /usr/share/acpi-support/state-funcs || exit 0
+
+logger "ACPI [lid] state-func passed"
 
 . /usr/share/acpi-support/power-funcs
 . /usr/share/acpi-support/policy-funcs
 . /etc/default/acpi-support
 
-[ -x /etc/acpi/local/lid.sh.pre ] && /etc/acpi/local/lid.sh.pre
+logger "ACPI [lid] support funcs loaded"
 
-if [ `CheckPolicy` = 0 ]; then exit; fi
+if [ `CheckPolicy` = 0 ]
+then
+  logger "ACPI [lid] CheckPolicy failed"
+  exit
+fi
 
+# get the user running xscreensaver
+xs=$(ps up $(pidof xscreensaver) | awk '/xscreensaver/ {print $1}')
+logger "ACPI [lid] xscreensaver user $xs"
+# If $? = 0 then the lid is closing otherwise it's being opened
 grep -q closed /proc/acpi/button/lid/*/state
 if [ $? = 0 ]
 then
-	Dis=`acpi |cut -f3 -d" "`
-  if [ "$Dis" = "Discharging," ] ; then
+  logger "ACPI [lid]: Lid closed"
+	Dis=`acpi | cut -f3 -d " "`
+
+	# If we are discharging then sleep otherwise blank the screen
+  if [ "$Dis" = "Discharging," ]
+  then
+    logger "ACPI [lid]: Discharging... Entering sleep"
+    su $xs -c "xscreensaver-command -lock"
+    sleep 2
     echo -n mem > /sys/power/state
   else
-    . /usr/share/acpi-support/screenblank
+    logger "ACPI user: $user"
+    logger "ACPI [lid]: Power connected blanking screen"
+    su $xs -c "xscreensaver-command -lock"
   fi
-  #  for x in /tmp/.X11-unix/*; do
-	#displaynum=`echo $x | sed s#/tmp/.X11-unix/X##`
-	#getXuser;
-	#if [ x"$XAUTHORITY" != x"" ]; then
-	#    export DISPLAY=":$displaynum"	    
-	#    #. /usr/share/acpi-support/screenblank
-	#    #Dis=`acpi |cut -f3 -d" "`
-  #    #if [ "$Dis" = "Discharging," ] ; then
-  #    #  echo -n mem > /sys/power/state
-  #    #else
-  #    #  . /usr/share/acpi-support/screenblank
-  #    #fi
-  #    echo -n mem > /sys/power/state
-	#fi
-  #  done
 else
-    for x in /tmp/.X11-unix/*; do
-	displaynum=`echo $x | sed s#/tmp/.X11-unix/X##`
-	getXuser;
-	if [ x"$XAUTHORITY" != x"" ]; then
-	    export DISPLAY=":$displaynum"
-	    grep -q off-line /proc/acpi/ac_adapter/*/state
-	    if [ $? = 1 ]
-		then
-		if pidof xscreensaver > /dev/null; then 
-		    su $user -c "xscreensaver-command -unthrottle"
-		fi
-	    fi
-	    if [ x$RADEON_LIGHT = xtrue ]; then
-		[ -x /usr/sbin/radeontool ] && radeontool light on
-	    fi
-	    if [ `pidof xscreensaver` ]; then
-		su $user -c "xscreensaver-command -deactivate"
-	    fi
-	    su $user -c "xset dpms force on"
-	fi
-    done
+  logger "ACPI [lid]: Lid opened"
+  su $xs -c "xset dpms force on"
+  su $xs -c "xscreensaver-command -deactivate"
 fi
-[ -x /etc/acpi/local/lid.sh.post ] && /etc/acpi/local/lid.sh.post
